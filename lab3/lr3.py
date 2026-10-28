@@ -1,7 +1,8 @@
 """
-Лабораторная работа № 3. Вариант 0.
-Быстрая сортировка (Хоар, средний опорный) и сортировка слиянием.
-Сравнение с алгоритмами ЛР № 2 и встроенной sorted().
+Лабораторная работа № 3. Вариант 16.
+Быстрая сортировка (Хоар, опорный — первый элемент) и нисходящая сортировка
+слиянием. Сравнение с алгоритмами ЛР № 2 и встроенной sorted().
+Доп. задание Г4: максимальная глубина рекурсии на данных R, S, V.
 """
 import math
 import sys
@@ -12,6 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lab2"))
 
 from sorts_common import generate_data, measure  # noqa: E402
 from lr2 import bubble_sort, insertion_sort      # noqa: E402
+
+LO, HI = 0, 1_000_000             # диапазон значений (как в ЛР № 2)
+REPEATS = 5                       # медиана из 5 замеров
 
 
 # ---------- Быстрая сортировка ----------
@@ -34,8 +38,8 @@ def _quick_sort(a, lo, hi):
 
 
 def _partition(a, lo, hi):
-    """Разбиение Хоара, опорный элемент — средний."""
-    pivot = a[(lo + hi) // 2]
+    """Разбиение Хоара, опорный элемент — первый."""
+    pivot = a[lo]
     i, j = lo - 1, hi + 1
     while True:
         i += 1
@@ -72,12 +76,60 @@ def _merge(left, right):
     return result
 
 
+# ---------- Г4: глубина рекурсии ----------
+def quick_depth(arr):
+    """Максимальная глубина рекурсии quick_sort (рекурсия в меньшую часть)."""
+    a = arr.copy()
+    max_depth = 0
+
+    def rec(lo, hi, depth):
+        nonlocal max_depth
+        max_depth = max(max_depth, depth)
+        while lo < hi:
+            p = _partition(a, lo, hi)
+            if p - lo < hi - p:
+                rec(lo, p, depth + 1)
+                lo = p + 1
+            else:
+                rec(p + 1, hi, depth + 1)
+                hi = p
+
+    rec(0, len(a) - 1, 1)
+    return max_depth
+
+
+def quick_naive_depth(arr):
+    """Глубина рекурсии «наивной» быстрой сортировки (два рекурсивных вызова)."""
+    a = arr.copy()
+    max_depth = 0
+
+    def rec(lo, hi, depth):
+        nonlocal max_depth
+        max_depth = max(max_depth, depth)
+        if lo < hi:
+            p = _partition(a, lo, hi)
+            rec(lo, p, depth + 1)
+            rec(p + 1, hi, depth + 1)
+
+    rec(0, len(a) - 1, 1)
+    return max_depth
+
+
+def merge_depth(arr, depth=1):
+    """Максимальная глубина рекурсии merge_sort."""
+    if len(arr) <= 1:
+        return depth
+    mid = len(arr) // 2
+    return max(merge_depth(arr[:mid], depth + 1),
+               merge_depth(arr[mid:], depth + 1))
+
+
 # ---------- Эксперименты ----------
-def run_experiment(algorithms, sizes, kind="random", repeats=3):
+def run_experiment(algorithms, sizes, kind="random", repeats=REPEATS):
     results = {name: [] for name in algorithms}
     print(f"{'n':>8}" + "".join(f"{name:>12}" for name in algorithms))
     for n in sizes:
-        data = generate_data(n, kind=kind)
+        data = generate_data(n, kind=kind, lo=LO, hi=HI)
         row = f"{n:>8}"
         for name, func in algorithms.items():
             t = measure(func, data, repeats)
@@ -94,10 +146,12 @@ if __name__ == "__main__":
     COLORS = {"Пузырьком": "#2a78d6", "Вставками": "#eb6834",
               "Быстрая": "#1baf7a", "Слиянием": "#eda100",
               "sorted()": "#e87ba4"}
+    KINDS = {"random": "R", "sorted": "S", "reversed": "V",
+             "nearly_sorted": "N", "duplicates": "D"}
 
-    # Эксперимент 1: четыре алгоритма
+    # Эксперимент 1: четыре алгоритма на размерах из ЛР № 2
     print("Эксперимент 1: четыре алгоритма, случайные данные")
-    small = [500, 1000, 2000, 3000, 4000, 5000]
+    small = [500, 1500, 2500, 3500, 4500]
     res1 = run_experiment({"Пузырьком": bubble_sort,
                            "Вставками": insertion_sort,
                            "Быстрая": quick_sort,
@@ -105,7 +159,7 @@ if __name__ == "__main__":
 
     # Эксперимент 2: O(n log n) на больших размерах
     print("\nЭксперимент 2: алгоритмы O(n log n) на больших массивах")
-    large = [10_000, 25_000, 50_000, 100_000, 200_000]
+    large = [20_000, 30_000, 40_000, 50_000]
     res2 = run_experiment({"Быстрая": quick_sort,
                            "Слиянием": merge_sort,
                            "sorted()": sorted}, large)
@@ -114,34 +168,61 @@ if __name__ == "__main__":
         print(f"{n:>8}{res2['Слиянием'][k] / res2['Быстрая'][k]:>22.2f}"
               f"{res2['Быстрая'][k] / res2['sorted()'][k]:>22.2f}")
 
-    # Проверка роста T(2n)/T(n)
-    print("\nОтношение T(2n)/T(n)")
+    # Проверка роста T(n2)/T(n1)
+    print("\nОтношение T(n2)/T(n1)")
     print(f"{'Переход':>18}{'Быстрая':>10}{'Слиянием':>10}"
-          f"{'n log n':>10}{'n²':>6}")
-    for n in large:
-        if 2 * n in large:
-            i, j = large.index(n), large.index(2 * n)
-            theory = 2 * math.log(2 * n) / math.log(n)
-            print(f"{n:>8} -> {2 * n:<7}"
-                  f"{res2['Быстрая'][j] / res2['Быстрая'][i]:>10.2f}"
-                  f"{res2['Слиянием'][j] / res2['Слиянием'][i]:>10.2f}"
-                  f"{theory:>10.2f}{4:>6}")
+          f"{'n log n':>10}{'n²':>8}")
+    pairs = list(zip(large, large[1:])) + [(large[0], 2 * large[0])]
+    for n1, n2 in pairs:
+        i, j = large.index(n1), large.index(n2)
+        theory = n2 * math.log(n2) / (n1 * math.log(n1))
+        print(f"{n1:>8} -> {n2:<7}"
+              f"{res2['Быстрая'][j] / res2['Быстрая'][i]:>10.2f}"
+              f"{res2['Слиянием'][j] / res2['Слиянием'][i]:>10.2f}"
+              f"{theory:>10.2f}{(n2 / n1) ** 2:>8.2f}")
 
-    # Эксперимент 3: влияние структуры данных
-    print("\nЭксперимент 3, n = 50 000")
-    kinds = {"random": "R", "sorted": "S", "reversed": "V",
-             "nearly_sorted": "N", "duplicates": "D"}
-    res3 = {"Быстрая": [], "Слиянием": []}
-    for kind in kinds:
-        data = generate_data(50_000, kind=kind)
-        tq, tm = measure(quick_sort, data), measure(merge_sort, data)
-        res3["Быстрая"].append(tq)
-        res3["Слиянием"].append(tm)
-        print(f"{kind:>15} ({kinds[kind]}): быстрая {tq:.5f} с, "
-              f"слиянием {tm:.5f} с")
+    # Эксперимент 3: влияние структуры данных.
+    # Опорный «первый» на S и V даёт Θ(n²), поэтому для всех типов
+    # берём n = 3000, а n = 50 000 — только для R, N, D.
+    res3 = {}
+    for n, kinds in ((3000, KINDS), (50_000, ("random", "nearly_sorted",
+                                               "duplicates"))):
+        print(f"\nЭксперимент 3, n = {n}")
+        for kind in kinds:
+            data = generate_data(n, kind=kind, lo=LO, hi=HI)
+            tq = measure(quick_sort, data, REPEATS)
+            tm = measure(merge_sort, data, REPEATS)
+            res3[n, kind] = (tq, tm)
+            print(f"{kind:>15} ({KINDS[kind]}): быстрая {tq:.5f} с, "
+                  f"слиянием {tm:.5f} с, быстрая / слиянием {tq / tm:.2f}")
 
-    # Сводная таблица при n = 5000
-    print("\nСводная таблица, n = 5000, случайные данные")
+    print("\nКвадратичный рост быстрой сортировки на упорядоченных данных (S)")
+    deg_sizes = [1000, 2000, 3000, 4000]
+    deg = []
+    for n in deg_sizes:
+        t = measure(quick_sort, generate_data(n, kind="sorted", lo=LO, hi=HI),
+                    REPEATS)
+        deg.append(t)
+        print(f"{n:>8}{t:>12.5f}{t / n ** 2 * 1e8:>12.2f} (T/n² · 10⁸)")
+
+    # Г4: максимальная глубина рекурсии
+    sys.setrecursionlimit(20_000)
+    print("\nГ4. Максимальная глубина рекурсии")
+    print(f"{'n':>8}{'Тип':>5}{'Быстрая':>10}{'Быстрая (наивн.)':>18}"
+          f"{'Слиянием':>10}{'log2 n':>9}")
+    depth = {}
+    for n in (3000, 50_000):
+        for kind in ("random", "sorted", "reversed"):
+            data = generate_data(n, kind=kind, lo=LO, hi=HI)
+            naive = (quick_naive_depth(data)
+                     if n <= 3000 or kind == "random" else None)
+            depth[n, kind] = (quick_depth(data), naive, merge_depth(data))
+            print(f"{n:>8}{KINDS[kind]:>5}{depth[n, kind][0]:>10}"
+                  f"{naive if naive is not None else '—':>18}"
+                  f"{depth[n, kind][2]:>10}{math.log2(n):>9.2f}")
+
+    # Сводная таблица при n = 4500
+    print("\nСводная таблица, n = 4500, случайные данные")
     base = res1["Пузырьком"][-1]
     for name, times in res1.items():
         print(f"{name:>12}{times[-1]:>10.5f} с  ускорение x{base / times[-1]:.0f}")
@@ -152,6 +233,7 @@ if __name__ == "__main__":
         axes[0].plot(small, t, marker="o", markersize=6, linewidth=2,
                      color=COLORS[name], label=name)
     axes[0].set_yscale("log")
+    axes[0].set_xticks(small)
     axes[0].set_title("Эксперимент 1 (лог. шкала времени)")
     for name, t in res2.items():
         axes[1].plot(large, t, marker="o", markersize=6, linewidth=2,
@@ -159,19 +241,22 @@ if __name__ == "__main__":
         axes[1].annotate(f"{t[-1]:.3f} с", (large[-1], t[-1]),
                          textcoords="offset points", xytext=(-8, 6),
                          ha="right", fontsize=9, color="#333333")
+    axes[1].set_xticks(large)
     axes[1].set_title("Эксперимент 2")
     for ax in axes[:2]:
         ax.set_xlabel("Размер массива n")
     width = 0.38
-    xs = range(len(kinds))
-    for shift, name in ((-width / 2, "Быстрая"), (width / 2, "Слиянием")):
-        bars = axes[2].bar([x + shift for x in xs], res3[name], width * 0.95,
+    xs = range(len(KINDS))
+    for idx, (shift, name) in enumerate(((-width / 2, "Быстрая"),
+                                         (width / 2, "Слиянием"))):
+        vals = [res3[3000, kind][idx] for kind in KINDS]
+        bars = axes[2].bar([x + shift for x in xs], vals, width * 0.95,
                            color=COLORS[name], label=name)
-        axes[2].bar_label(bars, fmt="%.3f", fontsize=8, padding=2,
+        axes[2].bar_label(bars, fmt="%.4f", fontsize=8, padding=2,
                           color="#333333")
-    axes[2].set_xticks(list(xs), list(kinds.values()))
-    axes[2].set_xlabel("Тип данных (n = 50 000)")
-    axes[2].set_title("Эксперимент 3")
+    axes[2].set_xticks(list(xs), list(KINDS.values()))
+    axes[2].set_xlabel("Тип данных (n = 3000)")
+    axes[2].set_title("Эксперимент 3 (опорный — первый элемент)")
     for ax in axes:
         ax.set_ylabel("Время, с")
         ax.grid(True, color="#e5e5e5", linewidth=0.8)

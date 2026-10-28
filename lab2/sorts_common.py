@@ -22,12 +22,16 @@ def generate_data(n, kind="random", lo=0, hi=100_000, seed=42):
     return data
 
 
-def measure(sort_func, data, repeats=3):
-    """Возвращает медианное время работы sort_func на данных data, с."""
+def measure(sort_func, data, repeats=3, reverse=False):
+    """Возвращает медианное время работы sort_func на данных data, с.
+
+    При reverse=True функция вызывается как sort_func(data, reverse=True),
+    а результат сверяется с sorted(data, reverse=True)."""
     times = []
+    expected = sorted(data, reverse=reverse)
     for _ in range(repeats):
         start = time.perf_counter()
-        result = sort_func(data)
+        result = sort_func(data, reverse=True) if reverse else sort_func(data)
         times.append(time.perf_counter() - start)
-        assert result == sorted(data), f"{sort_func.__name__}: ошибка сортировки"
+        assert result == expected, f"{sort_func.__name__}: ошибка сортировки"
     return statistics.median(times)
